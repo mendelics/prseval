@@ -1,0 +1,44 @@
+test_that("get_prs_or_auc returns a list", {
+  # PCs 1 to 10
+  n_cols <- 10
+  n_rows <- 100
+  data_matrix <- replicate(
+    n_cols,
+    rnorm(n_rows, mean = runif(1, 0, 10), sd = runif(1, 1, 5))
+  )
+  df_pcs <- as.data.frame(data_matrix)
+  colnames(df_pcs) <- paste0("pc", 1:n_cols)
+
+  # Data mock
+  data_mock <- data.frame(
+    impersonate_code = paste0(
+      sample(LETTERS, 100, replace = T),
+      sample(LETTERS, 100, replace = T),
+      sample(LETTERS, 100, replace = T),
+      sample(1:9, 100, replace = T),
+      sample(1:9, 100, replace = T),
+      sample(1:9, 100, replace = T)
+    ),
+    status = as.factor(sample(c(0, 1), size = 100, replace = T)),
+    age_analysis = round(runif(100, 19, 80)),
+    tier1 = as.factor(sample(
+      c(0, 1),
+      size = 100,
+      prob = c(0.8, 0.2),
+      replace = T
+    )),
+    prs_test = rnorm(n = 100),
+    version = sample(c("v1", "v2"), size = 100, replace = T)
+  ) |>
+    cbind(df_pcs)
+
+  # Arguments
+  seed <- 28
+  prs_col_mock <- "prs_test"
+
+  # Run
+  output <- get_prs_or_auc(data_mock, prs_col_mock, seed)
+
+  # Test
+  testthat::expect_type(output, "list")
+})
