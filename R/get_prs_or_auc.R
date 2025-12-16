@@ -1,6 +1,6 @@
 #' Get OR and AUC metrics for a certain PRS
 #'
-#' @param dataset A dataframe with columns status, age, tier1(0/1 for presence of pathogenic or likely-pathogenic variants in tier1 list for the disease evaluated).
+#' @param dataset A dataframe with columns status, age at analysis or diagnosis, impersonate code and id.
 #' @param prs_col Name of PRS column (character).
 #' @param seed A random number to be set as a seed for the training and testing sampling to be reproducible.
 #'
@@ -188,7 +188,10 @@ model_prs_only <- function(
 
 # Get PRS OR, AUC and ROC curves --------------------------------
 get_prs_or_auc <- function(dataset, prs_col, seed) {
-  stopifnot(is.double(dataset[, prs_col]), is.factor(dataset[, "status"]))
+  stopifnot(
+    is.double(dataset |> dplyr::pull({{ prs_col }})),
+    is.factor(dataset |> dplyr::pull(status))
+  )
 
   set.seed(seed)
 

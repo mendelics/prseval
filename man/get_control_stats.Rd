@@ -7,7 +7,7 @@
 get_control_stats(df)
 }
 \arguments{
-\item{dataset}{A dataframe with columns status, age, tier1(0/1 for presence of pathogenic or likely-pathogenic variants in tier1 list for the disease evaluated).}
+\item{dataset}{A dataframe with columns status, age at analysis or diagnosis, impersonate code and id.}
 
 \item{prs_col}{Name of PRS column (character).}
 
