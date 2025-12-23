@@ -55,7 +55,7 @@ per_interval_metrics <- function(
   # All intervals to generate metrics
   all_intervals <- setdiff(
     levels(df_intervals$interval),
-    c("40%–50%", "50%–60%")
+    c("40\u201350%", "50%\u201360%")
   )
 
   list_of_results <- lapply(all_intervals, function(intv) {

@@ -47,3 +47,60 @@ mavaddat_breaks <- function(prs_values) {
 
   return(breaks)
 }
+
+# Categorize samples into deciles -------------------------------------------------------
+classify_decile <- function(df, prs_col) {
+  stopifnot(is.character(prs_col), length(prs_col) <= 1)
+  prs <- df[, prs_col] |> unlist()
+
+  breaks <- decile_breaks(prs)
+
+  # Adjust breaks for min and max values to be 2 units less and 2 units more than
+  # This is because if we need to classify new samples into the breaks obtained here,
+  breaks_adj <- breaks
+  breaks_adj[1] <- breaks[1] - 2
+  breaks_adj[length(breaks_adj)] <- breaks[length(breaks)] + 2
+
+  # Create names for the intervals
+  names_left <- names(breaks_adj)[-length(breaks_adj)]
+  names_right <- names(breaks_adj)[-1]
+  intervals <- paste0(names_left, sep = "\u2013", names_right)
+
+  decile_intervals <- cut(
+    prs,
+    breaks = breaks_adj,
+    labels = intervals,
+    right = T, # value on the left of the interval is not included (only bigger than that value), and value on the right of the interval is included
+    ordered_result = T
+  )
+  return(decile_intervals)
+}
+
+
+# Categorize samples into Mavaddat percentiles ----------------------------------------------------
+classify_mavaddat <- function(df, prs_col) {
+  stopifnot(is.character(prs_col), length(prs_col) <= 1)
+  prs <- df[, prs_col] |> unlist()
+
+  breaks <- mavaddat_breaks(prs)
+
+  # Adjust breaks for min and max values to be 2 units less and 2 units more than
+  # This is because if we need to classify new samples into the breaks obtained here,
+  breaks_adj <- breaks
+  breaks_adj[1] <- breaks[1] - 2
+  breaks_adj[length(breaks_adj)] <- breaks[length(breaks)] + 2
+
+  # Create names for the intervals
+  names_left <- names(breaks_adj)[-length(breaks_adj)]
+  names_right <- names(breaks_adj)[-1]
+  intervals <- paste0(names_left, sep = "\u2013", names_right)
+
+  mavaddat_intervals <- cut(
+    prs,
+    breaks = breaks_adj,
+    labels = intervals,
+    right = T,
+    ordered_result = T
+  )
+  return(mavaddat_intervals)
+}
