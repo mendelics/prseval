@@ -1,17 +1,17 @@
 
+
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-# pgstools
+# prseval - IN DEVELOPMENT
 
 <!-- badges: start -->
-
 <!-- badges: end -->
 
-The goal of pgstools is to …
+The goal of prseval is to …
 
 ## Installation
 
-You can install the development version of pgstools like so:
+You can install the development version of prseval like so:
 
 ``` r
 # FILL THIS IN! HOW CAN PEOPLE INSTALL YOUR DEV PACKAGE?
@@ -22,7 +22,7 @@ You can install the development version of pgstools like so:
 This is a basic example which shows you how to solve a common problem:
 
 ``` r
-library(pgstools)
+library(prseval)
 ## basic example code
 ```
 
@@ -45,7 +45,7 @@ up-to-date. `devtools::build_readme()` is handy for this.
 
 You can also embed plots, for example:
 
-<img src="man/figures/README-pressure-1.png" width="100%" />
+<img src="man/figures/README-pressure-1.png" style="width:100.0%" />
 
 In that case, don’t forget to commit and push the resulting figure
 files, so they display on GitHub and CRAN.

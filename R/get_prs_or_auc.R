@@ -1,5 +1,5 @@
-#' Get OR and AUC metrics for a certain PRS
-#'
+#' Metrics per Standard Deviation
+#' @description Get OR and AUC metrics for a certain PRS
 #' @param dataset A dataframe with columns status, age at analysis or diagnosis, impersonate code and id.
 #' @param prs_col Name of PRS column (character).
 #' @param seed A random number to be set as a seed for the training and testing sampling to be reproducible.
@@ -12,28 +12,55 @@
 #' @import tidyr
 #' @importFrom broom tidy
 #' @import parsnip
-#' @import recipes
+#' @importFrom recipes recipe
+#' @importFrom recipes step_rm
+#' @importFrom recipes step_normalize
 #' @import workflows
 #' @import yardstick
 #' @import ggplot2
 #' @export
 #'
 #' @examples
-#' # get_prs_or_auc(breast_v2_v3_mut, x, seed = 28)
-#' # TBD
+#' # PCs 1 to 10
+#' n_cols <- 10
+#' n_rows <- 100
+#' data_matrix <- replicate(
+#'   n_cols,
+#'   rnorm(n_rows, mean = runif(1, 0, 10), sd = runif(1, 1, 5))
+#' )
+#' df_pcs <- as.data.frame(data_matrix)
+#' colnames(df_pcs) <- paste0("pc", 1:n_cols)
+#' # Data mock
+#' data_mock <- data.frame(
+#'   impersonate_code = paste0(
+#'     sample(LETTERS, 100, replace = T),
+#'     sample(LETTERS, 100, replace = T),
+#'     sample(LETTERS, 100, replace = T),
+#'     sample(1:9, 100, replace = T),
+#'     sample(1:9, 100, replace = T),
+#'     sample(1:9, 100, replace = T)
+#'   ),
+#'   status = as.factor(sample(c(0, 1), size = 100, replace = T)),
+#'   age_analysis = round(runif(100, 19, 80)),
+#'   tier1 = as.factor(sample(
+#'     c(0, 1),
+#'     size = 100,
+#'     prob = c(0.8, 0.2),
+#'     replace = T
+#'   )),
+#'   prs_test = rnorm(n = 100),
+#'   version = sample(c("v1", "v2"), size = 100, replace = T)
+#' ) |>
+#'   cbind(df_pcs)
+#'
+#' # Arguments
+#' seed <- 28
+#' prs_col_mock <- "prs_test"
+#'
+#' get_prs_or_auc(data_mock, prs_col_mock, seed)
+#'
 
 # TODO: add ensurance that status is a factor variable in all model functions or in the get_pgs... functions
-
-# Get control statistics ------------------------------------
-get_control_stats <- function(df) {
-  df |>
-    dplyr::filter(status == 0) |>
-    dplyr::summarise(dplyr::across(
-      dplyr::starts_with("prs"),
-      list(mean = mean, sd = sd),
-      .names = "{.col}_{.fn}"
-    ))
-}
 
 # Modeling with PRS function -------------------------------
 model_with_prs <- function(train_ctrl_stats, test_ctrl_stats, log_reg) {
@@ -45,7 +72,7 @@ model_with_prs <- function(train_ctrl_stats, test_ctrl_stats, log_reg) {
       version,
       impersonate_code
     ) |>
-    recipes::step_normalize(starts_with("pc"))
+    recipes::step_normalize(dplyr::starts_with("pc"))
 
   wflow_prs <- workflows::workflow() |>
     workflows::add_model(log_reg) |>

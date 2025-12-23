@@ -1,9 +1,9 @@
-Package: pgstools
+Package: prseval
 Title: Tools for Polygenic Risk Scores Validation (Testing Step)
 Version: 0.0.0.9000
 Authors@R: 
     person("Flávia", "E. Rius", , "flaviaerius@gmail.com", role = c("aut", "cre"))
-Description: {pgstools} contains tools to prepare data and calculate metrics and statistics for Polygenic (Risk) Scores (PGS/PRS) evaluation.
+Description: {prseval} contains tools to prepare data and calculate metrics and statistics for Polygenic (Risk) Scores (PGS/PRS) evaluation.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

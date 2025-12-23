@@ -7,6 +7,6 @@
 # * https://testthat.r-lib.org/articles/special-files.html
 
 library(testthat)
-library(pgstools)
+library(prseval)
 
-test_check("pgstools")
+test_check("prseval")
