@@ -8,7 +8,6 @@
 #' @importFrom dplyr summarise
 #' @importFrom dplyr across
 #' @importFrom dplyr starts_with
-#' @importFrom stats sd
 #'
 #' @export
 #'
@@ -21,7 +20,7 @@ get_control_stats <- function(df) {
     dplyr::filter(status == 0) |>
     dplyr::summarise(dplyr::across(
       dplyr::starts_with("prs"),
-      base::list(mean = base::mean, sd = stats::sd),
+      base::list(mean = base::mean, sd = sd),
       .names = "{.col}_{.fn}"
     ))
 }

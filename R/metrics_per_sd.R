@@ -7,17 +7,19 @@
 #' @return A list with OR, AUC, delta AUC, and ROC curve for AUC with and without PRS.
 #' @importFrom generics fit
 #' @importFrom stats predict
-#' @import rsample
-#' @import dplyr
-#' @import tidyr
+#' @importFrom stats as.formula
 #' @importFrom broom tidy
-#' @import parsnip
 #' @importFrom recipes recipe
 #' @importFrom recipes step_rm
 #' @importFrom recipes step_normalize
+#' @import rsample
+#' @import dplyr
+#' @import tidyr
+#' @import parsnip
 #' @import workflows
 #' @import yardstick
 #' @import ggplot2
+#'
 #' @export
 #'
 #' @examples
@@ -33,23 +35,23 @@
 #' # Data mock
 #' data_mock <- data.frame(
 #'   impersonate_code = paste0(
-#'     sample(LETTERS, 100, replace = T),
-#'     sample(LETTERS, 100, replace = T),
-#'     sample(LETTERS, 100, replace = T),
-#'     sample(1:9, 100, replace = T),
-#'     sample(1:9, 100, replace = T),
-#'     sample(1:9, 100, replace = T)
+#'     sample(LETTERS, 100, replace = TRUE),
+#'     sample(LETTERS, 100, replace = TRUE),
+#'     sample(LETTERS, 100, replace = TRUE),
+#'     sample(1:9, 100, replace = TRUE),
+#'     sample(1:9, 100, replace = TRUE),
+#'     sample(1:9, 100, replace = TRUE)
 #'   ),
-#'   status = as.factor(sample(c(0, 1), size = 100, replace = T)),
+#'   status = as.factor(sample(c(0, 1), size = 100, replace = TRUE)),
 #'   age_analysis = round(runif(100, 19, 80)),
 #'   tier1 = as.factor(sample(
 #'     c(0, 1),
 #'     size = 100,
 #'     prob = c(0.8, 0.2),
-#'     replace = T
+#'     replace = TRUE
 #'   )),
 #'   prs_test = rnorm(n = 100),
-#'   version = sample(c("v1", "v2"), size = 100, replace = T)
+#'   version = sample(c("v1", "v2"), size = 100, replace = TRUE)
 #' ) |>
 #'   cbind(df_pcs)
 #'
@@ -59,6 +61,111 @@
 #'
 #' get_prs_or_auc(data_mock, prs_col_mock, seed)
 #'
+
+get_prs_or_auc <- function(dataset, prs_col, seed) {
+  stopifnot(
+    is.double(dataset |> dplyr::pull({{ prs_col }})),
+    is.factor(dataset |> dplyr::pull(status))
+  )
+
+  set.seed(seed)
+
+  # Set PRS name with "norm" because we use the normalized version for the analyses
+  norm_prs <- paste0("norm_", prs_col)
+
+  split <- rsample::initial_split(dataset, strata = status, prop = 0.75)
+
+  train <- rsample::training(split)
+  test <- rsample::testing(split)
+
+  control_stats_train <- get_control_stats(train) |> as.data.frame()
+
+  control_train_mean <- control_stats_train[, paste0(prs_col, "_mean")]
+  control_train_sd <- control_stats_train[, paste0(prs_col, "_sd")]
+
+  train_ctrl_stats <- train |>
+    dplyr::mutate(
+      "{norm_prs}" := (get(prs_col) - control_train_mean) /
+        control_train_sd
+    ) |>
+    dplyr::select(
+      !dplyr::starts_with("prs")
+    )
+
+  control_stats_test <- get_control_stats(test) |> as.data.frame()
+
+  control_test_mean <- control_stats_test[, paste0(prs_col, "_mean")]
+  control_test_sd <- control_stats_test[, paste0(prs_col, "_sd")]
+
+  test_ctrl_stats <- test |>
+    dplyr::mutate(
+      "{norm_prs}" := (get(prs_col) - control_test_mean) /
+        control_test_sd
+    ) |>
+    dplyr::select(
+      !starts_with("prs")
+    )
+
+  log_reg <- parsnip::logistic_reg() |>
+    parsnip::set_engine("glm") |>
+    parsnip::set_mode("classification")
+
+  # Modeling with PRS -------------------
+  res_model_with_prs <- model_with_prs(
+    train_ctrl_stats,
+    test_ctrl_stats,
+    log_reg
+  )
+
+  # Modeling without PRS ------------------------------------
+  res_model_without_prs <- model_without_prs(
+    train_ctrl_stats,
+    test_ctrl_stats,
+    log_reg,
+    norm_prs
+  )
+
+  # Modeling only PRS-----------------------
+  res_model_prs_only <- model_prs_only(
+    train_ctrl_stats,
+    test_ctrl_stats,
+    log_reg,
+    norm_prs
+  )
+
+  # Results---------------
+
+  # AUC:
+  auc_with_prs <- round(res_model_with_prs[["auc_vars"]]$.estimate, 3)
+  auc_wo_prs <- round(res_model_without_prs[["auc_no_prs"]]$.estimate, 3)
+  auc_prs_only <- round(res_model_prs_only[["auc_prs_only"]]$.estimate, 3)
+
+  # Delta AUC
+  delta_auc <- auc_with_prs - auc_wo_prs
+
+  # get roc_auc together
+  all_roc_auc <- rbind(
+    res_model_with_prs[["roc_auc_vars"]],
+    res_model_without_prs[["roc_auc_no_prs"]]
+  )
+
+  p <- ggplot2::ggplot(
+    all_roc_auc,
+    ggplot2::aes(x = 1 - specificity, y = sensitivity, color = model)
+  ) +
+    ggplot2::geom_line() +
+    ggplot2::theme_bw()
+
+  return(list(
+    or = res_model_with_prs[["or"]],
+    auc_prs_only = auc_prs_only,
+    auc_with_prs = auc_with_prs,
+    auc_wo_prs = auc_wo_prs,
+    delta_auc = delta_auc,
+    roc_comparative_curve = p,
+    roc_prs_only = res_model_prs_only[["roc_auc_prs_only"]]
+  ))
+}
 
 # TODO: add ensurance that status is a factor variable in all model functions or in the get_pgs... functions
 
@@ -86,7 +193,7 @@ model_with_prs <- function(train_ctrl_stats, test_ctrl_stats, log_reg) {
     dplyr::select(!dplyr::all_of(c("std.error", "statistic")))
 
   # Predict probabilities
-  pred_prob_prs_vars <- stats::predict(
+  pred_prob_prs_vars <- predict(
     fit_prs,
     new_data = test_ctrl_stats,
     type = "prob"
@@ -137,7 +244,7 @@ model_without_prs <- function(
     generics::fit(data = train_ctrl_stats)
 
   # Predict probabilities
-  pred_prob_no_prs <- stats::predict(
+  pred_prob_no_prs <- predict(
     fit_no_prs,
     new_data = test_ctrl_stats,
     type = "prob"
@@ -184,7 +291,7 @@ model_prs_only <- function(
     generics::fit(data = train_ctrl_stats)
 
   # Predict probabilities
-  pred_prob_prs_only <- stats::predict(
+  pred_prob_prs_only <- predict(
     fit_prs_only,
     new_data = test_ctrl_stats,
     type = "prob"
@@ -210,111 +317,4 @@ model_prs_only <- function(
   res <- list(auc_prs_only = auc_prs_only, roc_auc_prs_only = roc_auc_prs_only)
 
   return(res)
-}
-
-
-# Get PRS OR, AUC and ROC curves --------------------------------
-get_prs_or_auc <- function(dataset, prs_col, seed) {
-  stopifnot(
-    is.double(dataset |> dplyr::pull({{ prs_col }})),
-    is.factor(dataset |> dplyr::pull(status))
-  )
-
-  set.seed(seed)
-
-  # Set PRS name with "norm" because we use the normalized version for the analyses
-  norm_prs <- paste0("norm_", prs_col)
-
-  split <- rsample::initial_split(dataset, strata = status, prop = 0.75)
-
-  train <- rsample::training(split)
-  test <- rsample::testing(split)
-
-  control_stats_train <- get_control_stats(train) |> as.data.frame()
-
-  control_train_mean <- control_stats_train[, paste0(prs_col, "_mean")]
-  control_train_sd <- control_stats_train[, paste0(prs_col, "_sd")]
-
-  train_ctrl_stats <- train |>
-    dplyr::mutate(
-      "{norm_prs}" := (get(prs_col) - control_train_mean) /
-        control_train_sd
-    ) |>
-    dplyr::select(
-      !starts_with("prs")
-    )
-
-  control_stats_test <- get_control_stats(test) |> as.data.frame()
-
-  control_test_mean <- control_stats_test[, paste0(prs_col, "_mean")]
-  control_test_sd <- control_stats_test[, paste0(prs_col, "_sd")]
-
-  test_ctrl_stats <- test |>
-    dplyr::mutate(
-      "{norm_prs}" := (get(prs_col) - control_test_mean) /
-        control_test_sd
-    ) |>
-    dplyr::select(
-      !starts_with("prs")
-    )
-
-  log_reg <- parsnip::logistic_reg() |>
-    parsnip::set_engine("glm") |>
-    parsnip::set_mode("classification")
-
-  # Modeling with PRS ------------------------------------------------------------------
-  res_model_with_prs <- model_with_prs(
-    train_ctrl_stats,
-    test_ctrl_stats,
-    log_reg
-  )
-
-  # Modeling without PRS ----------------------------------------------------------------------------------------------
-  res_model_without_prs <- model_without_prs(
-    train_ctrl_stats,
-    test_ctrl_stats,
-    log_reg,
-    norm_prs
-  )
-
-  # Modeling only PRS------------------------------------------------------------------------------------------------
-  res_model_prs_only <- model_prs_only(
-    train_ctrl_stats,
-    test_ctrl_stats,
-    log_reg,
-    norm_prs
-  )
-
-  # Results-------------------------------------------------------------------------------
-
-  # AUC:
-  auc_with_prs <- round(res_model_with_prs[["auc_vars"]]$.estimate, 3)
-  auc_wo_prs <- round(res_model_without_prs[["auc_no_prs"]]$.estimate, 3)
-  auc_prs_only <- round(res_model_prs_only[["auc_prs_only"]]$.estimate, 3)
-
-  # Delta AUC
-  delta_auc <- auc_with_prs - auc_wo_prs
-
-  # get roc_auc together
-  all_roc_auc <- rbind(
-    res_model_with_prs[["roc_auc_vars"]],
-    res_model_without_prs[["roc_auc_no_prs"]]
-  )
-
-  p <- ggplot2::ggplot(
-    all_roc_auc,
-    ggplot2::aes(x = 1 - specificity, y = sensitivity, color = model)
-  ) +
-    ggplot2::geom_line() +
-    ggplot2::theme_bw()
-
-  return(list(
-    or = res_model_with_prs[["or"]],
-    auc_prs_only = auc_prs_only,
-    auc_with_prs = auc_with_prs,
-    auc_wo_prs = auc_wo_prs,
-    delta_auc = delta_auc,
-    roc_comparative_curve = p,
-    roc_prs_only = res_model_prs_only[["roc_auc_prs_only"]]
-  ))
 }
