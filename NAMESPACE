@@ -2,7 +2,8 @@
 
 export(decile_breaks)
 export(get_control_stats)
-export(get_prs_or_auc)
+export(per_interval_metrics)
+export(per_sd_metrics)
 import(dplyr)
 import(ggplot2)
 import(parsnip)

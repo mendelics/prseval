@@ -1,4 +1,4 @@
-test_that("get_prs_or_auc returns a list", {
+test_that("per_sd_metrics returns a list", {
   # PCs 1 to 10
   n_cols <- 10
   n_rows <- 100
@@ -37,7 +37,7 @@ test_that("get_prs_or_auc returns a list", {
   prs_col_mock <- "prs_test"
 
   # Run
-  output <- get_prs_or_auc(data_mock, prs_col_mock, seed)
+  output <- per_sd_metrics(data_mock, prs_col_mock, seed)
 
   # Test
   testthat::expect_type(output, "list")

@@ -59,10 +59,10 @@
 #' seed <- 28
 #' prs_col_mock <- "prs_test"
 #'
-#' get_prs_or_auc(data_mock, prs_col_mock, seed)
+#' per_sd_metrics(data_mock, prs_col_mock, seed)
 #'
 
-get_prs_or_auc <- function(dataset, prs_col, seed) {
+per_sd_metrics <- function(dataset, prs_col, seed) {
   stopifnot(
     is.double(dataset |> dplyr::pull({{ prs_col }})),
     is.factor(dataset |> dplyr::pull(status))
