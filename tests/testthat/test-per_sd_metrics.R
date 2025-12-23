@@ -1,7 +1,7 @@
-test_that("per_sd_metrics returns a list", {
-  # PCs 1 to 10
+setup_mock_df <- function(n = 100) {
+  # Mock PCs 1 to 10
   n_cols <- 10
-  n_rows <- 100
+  n_rows <- n
   data_matrix <- replicate(
     n_cols,
     rnorm(n_rows, mean = runif(1, 0, 10), sd = runif(1, 1, 5))
@@ -9,36 +9,57 @@ test_that("per_sd_metrics returns a list", {
   df_pcs <- as.data.frame(data_matrix)
   colnames(df_pcs) <- paste0("pc", 1:n_cols)
 
-  # Data mock
+  # Mock df
   data_mock <- data.frame(
     impersonate_code = paste0(
-      sample(LETTERS, 100, replace = T),
-      sample(LETTERS, 100, replace = T),
-      sample(LETTERS, 100, replace = T),
-      sample(1:9, 100, replace = T),
-      sample(1:9, 100, replace = T),
-      sample(1:9, 100, replace = T)
+      sample(LETTERS, n, replace = T),
+      sample(LETTERS, n, replace = T),
+      sample(LETTERS, n, replace = T),
+      sample(1:9, n, replace = T),
+      sample(1:9, n, replace = T),
+      sample(1:9, n, replace = T)
     ),
-    status = as.factor(sample(c(0, 1), size = 100, replace = T)),
-    age_analysis = round(runif(100, 19, 80)),
+    status = as.factor(sample(c(0, 1), size = n, replace = T)),
+    age_analysis = round(runif(n, 19, 80)),
     tier1 = as.factor(sample(
       c(0, 1),
-      size = 100,
+      size = n,
       prob = c(0.8, 0.2),
       replace = T
     )),
-    prs_test = rnorm(n = 100),
-    version = sample(c("v1", "v2"), size = 100, replace = T)
+    prs_test = rnorm(n = n),
+    version = sample(c("v1", "v2"), size = n, replace = T)
   ) |>
     cbind(df_pcs)
+}
 
-  # Arguments
-  seed <- 28
-  prs_col_mock <- "prs_test"
+test_that("per_sd_metrics returns a list", {
+  data_mock <- setup_mock_df()
 
   # Run
-  output <- per_sd_metrics(data_mock, prs_col_mock, seed)
+  res <- per_sd_metrics(dataset = data_mock, prs_col = "prs_test", seed = 28)
 
   # Test
-  testthat::expect_type(output, "list")
+  expect_type(res, "list")
+})
+
+test_that("per_sd_metrics returns the correct list structure", {
+  data_mock <- setup_mock_df()
+
+  # Run
+  res <- per_sd_metrics(dataset = data_mock, prs_col = "prs_test", seed = 28)
+
+  # Test
+  expect_named(
+    res,
+    c(
+      "or",
+      "auc_prs_only",
+      "auc_with_prs",
+      "auc_wo_prs",
+      "delta_auc",
+      "roc_comparative_curve",
+      "roc_prs_only"
+    )
+  )
 })
