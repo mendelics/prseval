@@ -1,4 +1,5 @@
-#' Obtain mean and standard deviation for only controls of all PRSss
+#' Controls' PRS Mean and Standard Deviation
+#' @description Obtain mean and standard deviation for only controls of all PRSss
 #'
 #' @param df A dataframe with columns status, and "prs" in the start of all PRS columns.
 #' @return A tibble with columns named "prs\\[something\\]_mean", "prs\\[something\\]_sd" for all PRS columns, where mean and sd were calculated based on controls only (status == 0).
