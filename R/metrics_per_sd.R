@@ -168,8 +168,6 @@ per_sd_metrics <- function(dataset, prs_col, seed) {
   ))
 }
 
-# TODO: add ensurance that status is a factor variable in all model functions or in the get_pgs... functions
-
 # Modeling with PRS function -------------------------------
 model_with_prs <- function(train_ctrl_stats, test_ctrl_stats, log_reg) {
   rec_prs <- recipes::recipe(
@@ -289,6 +287,11 @@ model_prs_only <- function(
     workflows::add_model(log_reg) |>
     workflows::add_recipe(rec_prs_only)
 
+  # Model to obtain test set AUC
+  fit_prs_only <- wflow_rec_prs_only |>
+    generics::fit(data = train_ctrl_stats)
+
+  # AUC training set
   data_folds <- vfold_cv(train_ctrl_stats, v = 10, strata = status)
 
   fit_resamples_prs_only <- tune::fit_resamples(
@@ -302,11 +305,9 @@ model_prs_only <- function(
     filter(.metric == "roc_auc") |>
     select(id, .metric, .estimate)
 
-  fit_best_prs_only <- tune::fit_best(fit_resamples_prs_only)
-
   # Predict probabilities
   pred_prob_prs_only <- predict(
-    fit_best_prs_only,
+    fit_prs_only,
     new_data = test_ctrl_stats,
     type = "prob"
   )
