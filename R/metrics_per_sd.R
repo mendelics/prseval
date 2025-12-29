@@ -18,6 +18,7 @@
 #' @import parsnip
 #' @import workflows
 #' @import yardstick
+#' @import pROC
 #' @import ggplot2
 #'
 #' @export
@@ -138,7 +139,7 @@ per_sd_metrics <- function(dataset, prs_col, seed) {
   # AUC:
   auc_with_prs <- round(res_model_with_prs[["auc_vars"]]$.estimate, 3)
   auc_wo_prs <- round(res_model_without_prs[["auc_no_prs"]]$.estimate, 3)
-  auc_prs_only <- round(res_model_prs_only[["auc_prs_only"]]$.estimate, 3)
+  auc_prs_only <- round(df_auc_test, 3)
 
   # Delta AUC
   delta_auc <- auc_with_prs - auc_wo_prs
@@ -180,6 +181,7 @@ model_with_prs <- function(train_ctrl_stats, test_ctrl_stats, log_reg) {
       impersonate_code
     ) |>
     recipes::step_normalize(dplyr::starts_with("pc"))
+  #TODO: edit recipe to set in the formula only the variables for the model, so the dataframe can have extra variables with no problem (important so we can analyze later the metrics per strata: we can do this per ancestry in a very easy way.)
 
   wflow_prs <- workflows::workflow() |>
     workflows::add_model(log_reg) |>
@@ -273,8 +275,8 @@ model_without_prs <- function(
 model_prs_only <- function(
   train_ctrl_stats,
   test_ctrl_stats,
-  log_reg,
-  norm_prs
+  log_reg, # logistic regression model with the chosen engine
+  norm_prs # colname of the normalized PRS
 ) {
   form_prs_only <- as.formula(paste("status ~", norm_prs))
 
@@ -287,34 +289,58 @@ model_prs_only <- function(
     workflows::add_model(log_reg) |>
     workflows::add_recipe(rec_prs_only)
 
-  fit_prs_only <- wflow_rec_prs_only |>
-    generics::fit(data = train_ctrl_stats)
+  data_folds <- vfold_cv(train_ctrl_stats, v = 10, strata = status)
+
+  fit_resamples_prs_only <- tune::fit_resamples(
+    wflow_rec_prs_only,
+    resamples = data_folds,
+    control = tune::control_resamples(save_pred = TRUE, save_workflow = TRUE)
+  )
+
+  auc_training <- fit_resamples_prs_only |>
+    tune::collect_metrics(summarize = F) |>
+    filter(.metric == "roc_auc") |>
+    select(id, .metric, .estimate)
+
+  fit_best_prs_only <- tune::fit_best(fit_resamples_prs_only)
 
   # Predict probabilities
   pred_prob_prs_only <- predict(
-    fit_prs_only,
+    fit_best_prs_only,
     new_data = test_ctrl_stats,
     type = "prob"
   )
 
   # Add to testing data
-  results_prs_only <- test_ctrl_stats |>
+  test_results_prs_only <- test_ctrl_stats |>
     dplyr::bind_cols(pred_prob_prs_only)
 
-  # Obtain ROC AUC
-  auc_prs_only <- yardstick::roc_auc(
-    results_prs_only,
-    truth = status,
-    .pred_0
-  ) |>
-    dplyr::select(!dplyr::any_of(".estimator"))
+  # ROC AUC with confidence interval using DeLong method
+  roc_auc_test <- pROC::roc(
+    response = test_results_prs_only$status,
+    predictor = test_results_prs_only$.pred_0
+  )
+
+  ci_delong <- ci.auc(roc_auc_test, method = "delong")
+
+  df_auc_test <- data.frame(
+    auc_test = roc_auc_test$auc[[1]],
+    lower = ci_delong[[1]],
+    upper = ci_delong[[3]]
+  )
 
   # Plot ROC AUC
-  roc_auc_prs_only <- results_prs_only |>
-    yardstick::roc_curve(truth = status, .pred_0) |>
-    ggplot2::autoplot()
+  p <- ggroc(roc_auc_test, color = "steelblue", size = 1) +
+    theme_minimal() +
+    ggtitle(paste0("ROC Curve (AUC = ", round(auc(roc_auc_test), 3), ")")) +
+    geom_abline(slope = 1, intercept = 1, linetype = "dashed", color = "grey") +
+    labs(x = "Specificity", y = "Sensitivity")
 
-  res <- list(auc_prs_only = auc_prs_only, roc_auc_prs_only = roc_auc_prs_only)
+  res <- list(
+    auc_train_prs_only = auc_training,
+    auc_ci_test_prs_only = df_auc_test,
+    roc_curve_test_prs_only = p
+  )
 
   return(res)
 }

@@ -63,3 +63,13 @@ test_that("per_sd_metrics returns the correct list structure", {
     )
   )
 })
+
+test_that("per_sd_metrics returns the correct auc_prs_only structure", {
+  data_mock <- setup_mock_df()
+
+  # Run
+  res <- per_sd_metrics(dataset = data_mock, prs_col = "prs_test", seed = 82)
+
+  # Test
+  expect_s3_class(res[["auc_prs_only"]], "data.frame")
+})
