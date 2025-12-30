@@ -8,6 +8,7 @@
 #' @importFrom generics fit
 #' @importFrom stats predict
 #' @importFrom stats as.formula
+#' @importFrom stats anova
 #' @importFrom broom tidy
 #' @importFrom recipes recipe
 #' @importFrom recipes step_rm
@@ -19,6 +20,7 @@
 #' @import workflows
 #' @import yardstick
 #' @import pROC
+#' @import tune
 #' @import ggplot2
 #'
 #' @export
@@ -115,7 +117,8 @@ per_sd_metrics <- function(dataset, prs_col, seed) {
   res_model_with_prs <- model_with_prs(
     train_ctrl_stats,
     test_ctrl_stats,
-    log_reg
+    log_reg,
+    norm_prs
   )
 
   # Modeling without PRS ------------------------------------
@@ -136,18 +139,27 @@ per_sd_metrics <- function(dataset, prs_col, seed) {
 
   # Results---------------
 
-  # AUC:
-  auc_with_prs <- round(res_model_with_prs[["auc_vars"]]$.estimate, 3)
-  auc_wo_prs <- round(res_model_without_prs[["auc_no_prs"]]$.estimate, 3)
-  auc_prs_only <- round(df_auc_test, 3)
+  # AUC training set:
+  auc_training_prs_only <- res_model_prs_only[["auc_train_prs_only"]]
+
+  # AUC testing set:
+  auc_with_prs <- round(res_model_with_prs[["auc_test_with_prs"]], 3)
+  auc_wo_prs <- round(res_model_without_prs[["auc_test_wo_prs"]], 3)
+  auc_prs_only <- round(res_model_prs_only[["auc_ci_test_prs_only"]], 3)
+
+  # Likelihood Ratio Test between model with and without PRS
+  fit_with_prs <- extract_fit_engine(res_model_with_prs[["fit_with_prs"]])
+  fit_wo_prs <- extract_fit_engine(res_model_without_prs[["fit_wo_prs"]])
+
+  lrt_res <- anova(fit_wo_prs, fit_with_prs, test = "Chisq")
 
   # Delta AUC
-  delta_auc <- auc_with_prs - auc_wo_prs
+  delta_auc <- auc_with_prs$auc_test - auc_wo_prs$auc_test
 
-  # get roc_auc together
+  # Get roc_auc together #TODO: get data back here
   all_roc_auc <- rbind(
-    res_model_with_prs[["roc_auc_vars"]],
-    res_model_without_prs[["roc_auc_no_prs"]]
+    res_model_with_prs[["roc_curve_test_with_prs_data"]],
+    res_model_without_prs[["roc_curve_test_without_prs_data"]]
   )
 
   p <- ggplot2::ggplot(
@@ -159,60 +171,104 @@ per_sd_metrics <- function(dataset, prs_col, seed) {
 
   return(list(
     or = res_model_with_prs[["or"]],
-    auc_prs_only = auc_prs_only,
+    lrt_res = lrt_res,
     auc_with_prs = auc_with_prs,
     auc_wo_prs = auc_wo_prs,
     delta_auc = delta_auc,
     roc_comparative_curve = p,
-    roc_prs_only = res_model_prs_only[["roc_auc_prs_only"]]
+    roc_with_prs = res_model_with_prs[["full_roc_test_with_prs"]],
+    roc_wo_prs = res_model_with_prs[["full_roc_test_wo_prs"]],
+    roc_prs_only = res_model_prs_only[["roc_auc_prs_only"]],
+    auc_prs_only_training_set = auc_training_prs_only,
+    auc_prs_only_testing_set = auc_prs_only
   ))
 }
 
 # Modeling with PRS function -------------------------------
-model_with_prs <- function(train_ctrl_stats, test_ctrl_stats, log_reg) {
+model_with_prs <- function(
+  train_ctrl_stats,
+  test_ctrl_stats,
+  log_reg,
+  norm_prs
+) {
+  # Formula with predictors wanted
+  form_full_model <- as.formula(paste(
+    "status ~",
+    norm_prs,
+    "+",
+    paste0("pc", 1:10, sep = " + ", collapse = " "),
+    "age_analysis"
+  ))
+
   rec_prs <- recipes::recipe(
-    status ~ .,
+    form_full_model,
     data = train_ctrl_stats
   ) |>
-    recipes::step_rm(
-      version,
-      impersonate_code
-    ) |>
     recipes::step_normalize(dplyr::starts_with("pc"))
-  #TODO: edit recipe to set in the formula only the variables for the model, so the dataframe can have extra variables with no problem (important so we can analyze later the metrics per strata: we can do this per ancestry in a very easy way.)
 
   wflow_prs <- workflows::workflow() |>
     workflows::add_model(log_reg) |>
     workflows::add_recipe(rec_prs)
 
+  # Odds Ratio
   fit_prs <- wflow_prs |>
     generics::fit(data = train_ctrl_stats)
 
   or <- broom::tidy(fit_prs, exponentiate = T, conf.int = T) |>
-    # filter(!grepl("pc", term), term != "(Intercept)") |>
     dplyr::select(!dplyr::all_of(c("std.error", "statistic")))
 
-  # Predict probabilities
+  # AUC training set
+  data_folds <- vfold_cv(train_ctrl_stats, v = 10, strata = status)
+
+  fit_resamples_full_model <- tune::fit_resamples(
+    wflow_prs,
+    resamples = data_folds,
+    control = tune::control_resamples(save_pred = TRUE, save_workflow = TRUE)
+  )
+
+  auc_training <- fit_resamples_full_model |>
+    tune::collect_metrics(summarize = F) |>
+    filter(.metric == "roc_auc") |>
+    dplyr::select(id, .metric, .estimate)
+
+  # AUC testing set
   pred_prob_prs_vars <- predict(
     fit_prs,
     new_data = test_ctrl_stats,
     type = "prob"
   )
 
-  # Add to testing data
-  results_prs_vars <- test_ctrl_stats |>
+  test_results_with_prs <- test_ctrl_stats |>
     dplyr::bind_cols(pred_prob_prs_vars)
 
-  # Obtain ROC AUC **with PRS**
-  auc_vars <- yardstick::roc_auc(results_prs_vars, truth = status, .pred_0) |>
-    dplyr::select(!dplyr::any_of(".estimator"))
+  roc_auc_test <- pROC::roc(
+    response = test_results_with_prs$status,
+    predictor = test_results_with_prs$.pred_0
+  )
 
-  # Get ROC AUC values
-  roc_auc_vars <- results_prs_vars |>
-    yardstick::roc_curve(truth = status, .pred_0) |>
-    dplyr::mutate(model = "with PRS")
+  ci_delong <- pROC::ci.auc(roc_auc_test, method = "delong")
 
-  res <- list(or = or, auc_vars = auc_vars, roc_auc_vars = roc_auc_vars)
+  df_auc_test <- data.frame(
+    auc_test = roc_auc_test$auc[[1]],
+    lower = ci_delong[[1]],
+    upper = ci_delong[[3]]
+  )
+
+  # Get data for ROC curve
+  roc_curve_test_data <- data.frame(
+    model = "with_prs",
+    sensitivity = roc_auc_test$sensitivities,
+    specificity = roc_auc_test$specificities
+  )
+
+  res <- list(
+    or = or,
+    auc_train_with_prs = auc_training,
+    auc_test_with_prs = df_auc_test,
+    roc_curve_test_with_prs_data = roc_curve_test_data,
+    full_roc_test_with_prs = roc_auc_test,
+    fit_with_prs = fit_prs
+  )
 
   return(res)
 }
@@ -225,45 +281,78 @@ model_without_prs <- function(
   log_reg,
   norm_prs
 ) {
-  rec_no_prs <- recipes::recipe(
-    status ~ .,
+  # Formula with predictors wanted
+  form_model_wo_prs <- as.formula(paste(
+    "status ~",
+    paste0("pc", 1:10, sep = " + ", collapse = " "),
+    "age_analysis"
+  ))
+
+  rec_wo_prs <- recipes::recipe(
+    form_model_wo_prs,
     data = train_ctrl_stats
   ) |>
-    recipes::step_rm(
-      version,
-      all_of(norm_prs),
-      impersonate_code
-    ) |>
-    recipes::step_normalize(starts_with("pc"))
+    recipes::step_normalize(dplyr::starts_with("pc"))
 
-  wflow_rec_no_prs <- workflows::workflow() |>
+  wflow_wo_prs <- workflows::workflow() |>
     workflows::add_model(log_reg) |>
-    workflows::add_recipe(rec_no_prs)
+    workflows::add_recipe(rec_wo_prs)
 
-  fit_no_prs <- wflow_rec_no_prs |>
+  # Fit for test AUC
+  fit_wo_prs <- wflow_wo_prs |>
     generics::fit(data = train_ctrl_stats)
 
-  # Predict probabilities
-  pred_prob_no_prs <- predict(
-    fit_no_prs,
+  # AUC training set
+  data_folds <- vfold_cv(train_ctrl_stats, v = 10, strata = status)
+
+  fit_resamples_model_wo_prs <- tune::fit_resamples(
+    wflow_wo_prs,
+    resamples = data_folds,
+    control = tune::control_resamples(save_pred = TRUE, save_workflow = TRUE)
+  )
+
+  auc_training <- fit_resamples_model_wo_prs |>
+    tune::collect_metrics(summarize = F) |>
+    filter(.metric == "roc_auc") |>
+    dplyr::select(id, .metric, .estimate)
+
+  # AUC testing set
+  pred_prob_wo_prs <- predict(
+    fit_wo_prs,
     new_data = test_ctrl_stats,
     type = "prob"
   )
 
-  # Add to testing data
-  results_no_prs <- test_ctrl_stats |>
-    dplyr::bind_cols(pred_prob_no_prs)
+  test_results_wo_prs <- test_ctrl_stats |>
+    dplyr::bind_cols(pred_prob_wo_prs)
 
-  # AUC value
-  auc_no_prs <- yardstick::roc_auc(results_no_prs, truth = status, .pred_0) |>
-    dplyr::select(!dplyr::any_of(".estimator"))
+  roc_auc_test <- pROC::roc(
+    response = test_results_wo_prs$status,
+    predictor = test_results_wo_prs$.pred_0
+  )
 
-  # Get ROC AUC values
-  roc_auc_no_prs <- results_no_prs |>
-    yardstick::roc_curve(truth = status, .pred_0) |>
-    dplyr::mutate(model = "without PRS")
+  ci_delong <- pROC::ci.auc(roc_auc_test, method = "delong")
 
-  res <- list(auc_no_prs = auc_no_prs, roc_auc_no_prs = roc_auc_no_prs)
+  df_auc_test <- data.frame(
+    auc_test = roc_auc_test$auc[[1]],
+    lower = ci_delong[[1]],
+    upper = ci_delong[[3]]
+  )
+
+  # Get data for ROC curve
+  roc_curve_test_data <- data.frame(
+    model = "without_prs",
+    sensitivity = roc_auc_test$sensitivities,
+    specificity = roc_auc_test$specificities
+  )
+
+  res <- list(
+    auc_train_wo_prs = auc_training,
+    auc_test_wo_prs = df_auc_test,
+    roc_curve_test_wo_prs_data = roc_curve_test_data,
+    full_roc_test_wo_prs = roc_auc_test,
+    fit_wo_prs = fit_wo_prs
+  )
 
   return(res)
 }
@@ -273,8 +362,8 @@ model_without_prs <- function(
 model_prs_only <- function(
   train_ctrl_stats,
   test_ctrl_stats,
-  log_reg, # logistic regression model with the chosen engine
-  norm_prs # colname of the normalized PRS
+  log_reg,
+  norm_prs
 ) {
   form_prs_only <- as.formula(paste("status ~", norm_prs))
 
@@ -292,7 +381,7 @@ model_prs_only <- function(
     generics::fit(data = train_ctrl_stats)
 
   # AUC training set
-  data_folds <- vfold_cv(train_ctrl_stats, v = 10, strata = status)
+  data_folds <- rsample::vfold_cv(train_ctrl_stats, v = 10, strata = status)
 
   fit_resamples_prs_only <- tune::fit_resamples(
     wflow_rec_prs_only,
@@ -302,8 +391,8 @@ model_prs_only <- function(
 
   auc_training <- fit_resamples_prs_only |>
     tune::collect_metrics(summarize = F) |>
-    filter(.metric == "roc_auc") |>
-    select(id, .metric, .estimate)
+    dplyr::filter(.metric == "roc_auc") |>
+    dplyr::select(id, .metric, .estimate)
 
   # Predict probabilities
   pred_prob_prs_only <- predict(
@@ -322,7 +411,7 @@ model_prs_only <- function(
     predictor = test_results_prs_only$.pred_0
   )
 
-  ci_delong <- ci.auc(roc_auc_test, method = "delong")
+  ci_delong <- pROC::ci.auc(roc_auc_test, method = "delong")
 
   df_auc_test <- data.frame(
     auc_test = roc_auc_test$auc[[1]],
@@ -330,8 +419,8 @@ model_prs_only <- function(
     upper = ci_delong[[3]]
   )
 
-  # Plot ROC AUC
-  p <- ggroc(roc_auc_test, color = "steelblue", size = 1) +
+  # Plot ROC curve
+  p <- pROC::ggroc(roc_auc_test, color = "steelblue", size = 1) +
     theme_minimal() +
     ggtitle(paste0("ROC Curve (AUC = ", round(auc(roc_auc_test), 3), ")")) +
     geom_abline(slope = 1, intercept = 1, linetype = "dashed", color = "grey") +

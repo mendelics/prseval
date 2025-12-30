@@ -22,4 +22,6 @@ Imports:
     stats,
     tidyr,
     workflows,
-    yardstick
+    yardstick,
+    pROC,
+    tune
