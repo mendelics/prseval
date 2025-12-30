@@ -148,21 +148,25 @@ per_sd_metrics <- function(dataset, prs_col, seed) {
   auc_prs_only <- round(res_model_prs_only[["auc_ci_test_prs_only"]], 3)
 
   # Likelihood Ratio Test between model with and without PRS
-  fit_with_prs <- extract_fit_engine(res_model_with_prs[["fit_with_prs"]])
-  fit_wo_prs <- extract_fit_engine(res_model_without_prs[["fit_wo_prs"]])
+  fit_with_prs <- workflows::extract_fit_engine(res_model_with_prs[[
+    "fit_with_prs"
+  ]])
+  fit_wo_prs <- workflows::extract_fit_engine(res_model_without_prs[[
+    "fit_wo_prs"
+  ]])
 
   lrt_res <- anova(fit_wo_prs, fit_with_prs, test = "LRT")
   pval_lrt <- lrt_res$`Pr(>Chi)`[2]
 
   # Delta AUC
-  delta_auc <- auc_with_prs$auc_test - auc_wo_prs$auc_test
+  delta_auc <- auc_with_prs$auc - auc_wo_prs$auc
 
   # Get roc_auc together
   all_roc_auc <- rbind(
     res_model_with_prs[["roc_curve_test_with_prs_data"]],
-    res_model_without_prs[["roc_curve_test_wo_prs_data"]] #TODO: fix here = not working; plot shows only model with prs
+    res_model_without_prs[["roc_curve_test_wo_prs_data"]]
   ) |>
-    mutate(model = as.factor(model))
+    dplyr::mutate(model = as.factor(model))
 
   p <- ggplot2::ggplot(
     all_roc_auc,
@@ -180,7 +184,7 @@ per_sd_metrics <- function(dataset, prs_col, seed) {
     roc_comparative_curve = p,
     roc_with_prs = res_model_with_prs[["full_roc_test_with_prs"]],
     roc_wo_prs = res_model_without_prs[["full_roc_test_wo_prs"]],
-    roc_prs_only = res_model_prs_only[["roc_auc_prs_only"]],
+    roc_curve_plot_prs_only = res_model_prs_only[["roc_curve_test_prs_only"]],
     auc_prs_only_training_set = auc_training_prs_only,
     auc_prs_only_testing_set = auc_prs_only
   ))
@@ -220,7 +224,7 @@ model_with_prs <- function(
     dplyr::select(!dplyr::all_of(c("std.error", "statistic")))
 
   # AUC training set
-  data_folds <- vfold_cv(train_ctrl_stats, v = 10, strata = status)
+  data_folds <- rsample::vfold_cv(train_ctrl_stats, v = 10, strata = status)
 
   fit_resamples_full_model <- tune::fit_resamples(
     wflow_prs,
@@ -230,7 +234,7 @@ model_with_prs <- function(
 
   auc_training <- fit_resamples_full_model |>
     tune::collect_metrics(summarize = F) |>
-    filter(.metric == "roc_auc") |>
+    dplyr::filter(.metric == "roc_auc") |>
     dplyr::select(id, .metric, .estimate)
 
   # AUC testing set
@@ -251,7 +255,7 @@ model_with_prs <- function(
   ci_delong <- pROC::ci.auc(roc_auc_test, method = "delong")
 
   df_auc_test <- data.frame(
-    auc_test = roc_auc_test$auc[[1]],
+    auc = roc_auc_test$auc[[1]],
     lower = ci_delong[[1]],
     upper = ci_delong[[3]]
   )
@@ -305,7 +309,7 @@ model_without_prs <- function(
     generics::fit(data = train_ctrl_stats)
 
   # AUC training set
-  data_folds <- vfold_cv(train_ctrl_stats, v = 10, strata = status)
+  data_folds <- rsample::vfold_cv(train_ctrl_stats, v = 10, strata = status)
 
   fit_resamples_model_wo_prs <- tune::fit_resamples(
     wflow_wo_prs,
@@ -315,7 +319,7 @@ model_without_prs <- function(
 
   auc_training <- fit_resamples_model_wo_prs |>
     tune::collect_metrics(summarize = F) |>
-    filter(.metric == "roc_auc") |>
+    dplyr::filter(.metric == "roc_auc") |>
     dplyr::select(id, .metric, .estimate)
 
   # AUC testing set
@@ -336,7 +340,7 @@ model_without_prs <- function(
   ci_delong <- pROC::ci.auc(roc_auc_test, method = "delong")
 
   df_auc_test <- data.frame(
-    auc_test = roc_auc_test$auc[[1]],
+    auc = roc_auc_test$auc[[1]],
     lower = ci_delong[[1]],
     upper = ci_delong[[3]]
   )
@@ -416,17 +420,26 @@ model_prs_only <- function(
   ci_delong <- pROC::ci.auc(roc_auc_test, method = "delong")
 
   df_auc_test <- data.frame(
-    auc_test = roc_auc_test$auc[[1]],
+    auc = roc_auc_test$auc[[1]],
     lower = ci_delong[[1]],
     upper = ci_delong[[3]]
   )
 
   # Plot ROC curve
   p <- pROC::ggroc(roc_auc_test, color = "steelblue", linewidth = 1) +
-    theme_minimal() +
-    ggtitle(paste0("ROC Curve (AUC = ", round(auc(roc_auc_test), 3), ")")) +
-    geom_abline(slope = 1, intercept = 1, linetype = "dashed", color = "grey") +
-    labs(x = "Specificity", y = "Sensitivity")
+    ggplot2::theme_minimal() +
+    ggplot2::ggtitle(paste0(
+      "ROC Curve (AUC = ",
+      round(df_auc_test$auc, 3),
+      ")"
+    )) +
+    ggplot2::geom_abline(
+      slope = 1,
+      intercept = 1,
+      linetype = "dashed",
+      color = "grey"
+    ) +
+    ggplot2::labs(x = "Specificity", y = "Sensitivity")
 
   res <- list(
     auc_train_prs_only = auc_training,
