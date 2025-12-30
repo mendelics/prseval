@@ -151,16 +151,18 @@ per_sd_metrics <- function(dataset, prs_col, seed) {
   fit_with_prs <- extract_fit_engine(res_model_with_prs[["fit_with_prs"]])
   fit_wo_prs <- extract_fit_engine(res_model_without_prs[["fit_wo_prs"]])
 
-  lrt_res <- anova(fit_wo_prs, fit_with_prs, test = "Chisq")
+  lrt_res <- anova(fit_wo_prs, fit_with_prs, test = "LRT")
+  pval_lrt <- lrt_res$`Pr(>Chi)`[2]
 
   # Delta AUC
   delta_auc <- auc_with_prs$auc_test - auc_wo_prs$auc_test
 
-  # Get roc_auc together #TODO: get data back here
+  # Get roc_auc together
   all_roc_auc <- rbind(
     res_model_with_prs[["roc_curve_test_with_prs_data"]],
-    res_model_without_prs[["roc_curve_test_without_prs_data"]]
-  )
+    res_model_without_prs[["roc_curve_test_wo_prs_data"]] #TODO: fix here = not working; plot shows only model with prs
+  ) |>
+    mutate(model = as.factor(model))
 
   p <- ggplot2::ggplot(
     all_roc_auc,
@@ -171,7 +173,7 @@ per_sd_metrics <- function(dataset, prs_col, seed) {
 
   return(list(
     or = res_model_with_prs[["or"]],
-    lrt_res = lrt_res,
+    lrt_res = pval_lrt,
     auc_with_prs = auc_with_prs,
     auc_wo_prs = auc_wo_prs,
     delta_auc = delta_auc,
