@@ -179,7 +179,7 @@ per_sd_metrics <- function(dataset, prs_col, seed) {
     delta_auc = delta_auc,
     roc_comparative_curve = p,
     roc_with_prs = res_model_with_prs[["full_roc_test_with_prs"]],
-    roc_wo_prs = res_model_with_prs[["full_roc_test_wo_prs"]],
+    roc_wo_prs = res_model_without_prs[["full_roc_test_wo_prs"]],
     roc_prs_only = res_model_prs_only[["roc_auc_prs_only"]],
     auc_prs_only_training_set = auc_training_prs_only,
     auc_prs_only_testing_set = auc_prs_only
@@ -422,7 +422,7 @@ model_prs_only <- function(
   )
 
   # Plot ROC curve
-  p <- pROC::ggroc(roc_auc_test, color = "steelblue", size = 1) +
+  p <- pROC::ggroc(roc_auc_test, color = "steelblue", linewidth = 1) +
     theme_minimal() +
     ggtitle(paste0("ROC Curve (AUC = ", round(auc(roc_auc_test), 3), ")")) +
     geom_abline(slope = 1, intercept = 1, linetype = "dashed", color = "grey") +
