@@ -87,3 +87,13 @@ test_that("per_sd_metrics returns a list with non-empty variables", {
   # Test
   expect_length(res, 11)
 })
+
+test_that("per_sd_metrics list object 'delta_auc' is a dataframe", {
+  data_mock <- setup_mock_df()
+
+  # Run
+  res <- per_sd_metrics(dataset = data_mock, prs_col = "prs_test", seed = 282)
+
+  # Test
+  expect_s3_class(res$delta_auc, "data.frame")
+})

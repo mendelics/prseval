@@ -168,7 +168,7 @@ per_sd_metrics <- function(dataset, prs_col, seed) {
   res_delong_nested <- data.frame(
     auc_with = auc_with_prs,
     auc_wo = auc_wo_prs,
-    delta_auc = auc_with_prs - auc_wo_prs,
+    delta = auc_with_prs - auc_wo_prs,
     p_value = delong_nested_test$p.value
   )
 
