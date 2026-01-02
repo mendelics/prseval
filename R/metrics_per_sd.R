@@ -158,8 +158,19 @@ per_sd_metrics <- function(dataset, prs_col, seed) {
   lrt_res <- anova(fit_wo_prs, fit_with_prs, test = "LRT")
   pval_lrt <- lrt_res$`Pr(>Chi)`[2]
 
-  # Delta AUC
-  delta_auc <- auc_with_prs$auc - auc_wo_prs$auc
+  # Delta AUC with DeLong test
+  delong_nested_test <- pROC::roc.test(
+    res_model_with_prs[["full_roc_test_with_prs"]],
+    res_model_without_prs[["full_roc_test_wo_prs"]],
+    method = "delong"
+  )
+
+  res_delong_nested <- data.frame(
+    auc_with = auc_with_prs,
+    auc_wo = auc_wo_prs,
+    delta_auc = auc_with_prs - auc_wo_prs,
+    p_value = delong_nested_test$p.value
+  )
 
   # Get roc_auc together
   all_roc_auc <- rbind(
@@ -180,7 +191,7 @@ per_sd_metrics <- function(dataset, prs_col, seed) {
     lrt_res = pval_lrt,
     auc_with_prs = auc_with_prs,
     auc_wo_prs = auc_wo_prs,
-    delta_auc = delta_auc,
+    delta_auc = res_delong_nested,
     roc_comparative_curve = p,
     roc_with_prs = res_model_with_prs[["full_roc_test_with_prs"]],
     roc_wo_prs = res_model_without_prs[["full_roc_test_wo_prs"]],
@@ -449,3 +460,5 @@ model_prs_only <- function(
 
   return(res)
 }
+
+# TODO: create a similar function that, instead of the split using rsample function, uses a variable from the dataset with two factors to do the split on.
