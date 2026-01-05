@@ -196,6 +196,7 @@ per_sd_metrics <- function(dataset, prs_col, seed) {
     roc_with_prs = res_model_with_prs[["full_roc_test_with_prs"]],
     roc_wo_prs = res_model_without_prs[["full_roc_test_wo_prs"]],
     roc_curve_plot_prs_only = res_model_prs_only[["roc_curve_test_prs_only"]],
+    pred_with_prs = res_model_with_prs[["pred_with_prs"]],
     auc_prs_only_training_set = auc_training_prs_only,
     auc_prs_only_testing_set = auc_prs_only
   ))
@@ -284,7 +285,8 @@ model_with_prs <- function(
     auc_test_with_prs = df_auc_test,
     roc_curve_test_with_prs_data = roc_curve_test_data,
     full_roc_test_with_prs = roc_auc_test,
-    fit_with_prs = fit_prs
+    fit_with_prs = fit_prs,
+    pred_with_prs = test_results_with_prs
   )
 
   return(res)

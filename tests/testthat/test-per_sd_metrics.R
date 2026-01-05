@@ -62,6 +62,7 @@ test_that("per_sd_metrics returns the correct list structure", {
       "roc_with_prs",
       "roc_wo_prs",
       "roc_curve_plot_prs_only",
+      "pred_with_prs",
       "auc_prs_only_training_set",
       "auc_prs_only_testing_set"
     )
@@ -85,7 +86,7 @@ test_that("per_sd_metrics returns a list with non-empty variables", {
   res <- per_sd_metrics(dataset = data_mock, prs_col = "prs_test", seed = 82)
 
   # Test
-  expect_length(res, 11)
+  expect_length(res, 12)
 })
 
 test_that("per_sd_metrics list object 'delta_auc' is a dataframe", {
