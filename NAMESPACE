@@ -2,6 +2,7 @@
 
 export(decile_breaks)
 export(get_control_stats)
+export(model_with_prs)
 export(per_interval_metrics)
 export(per_sd_metrics)
 import(dplyr)

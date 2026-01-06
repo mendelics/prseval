@@ -80,7 +80,7 @@ per_interval_metrics <- function(
 model_by_interval <- function(df_intervals, prs_col, model, interval) {
   df_spec_interval <- df_intervals |>
     # drop everyone that is not the selected interval or the middle deciles
-    filter(interval %in% c("40%–50%", "50%–60%", {{ interval }})) |>
+    filter(interval %in% c("40%\u201350%", "50%\u201360%", {{ interval }})) |>
     mutate(
       is_interval = if_else(interval == {{ interval }}, 1, 0) # important! all categorical predictors need to be numeric for logistic regression with glm.
     ) |>

@@ -49,6 +49,7 @@ mavaddat_breaks <- function(prs_values) {
 }
 
 # Categorize samples into deciles -------------------------------------------------------
+# TODO: adjust to receive a vector as input and not a dataframe, so it can be used inside of mutate()
 classify_decile <- function(df, prs_col) {
   stopifnot(is.character(prs_col), length(prs_col) <= 1)
   prs <- df[, prs_col] |> unlist()
