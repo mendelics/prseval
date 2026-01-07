@@ -19,7 +19,7 @@ model_with_prs(
 
 \item{log_reg}{A parsnip logistic regression model.}
 
-\item{norm_prs}{name of the normalized PRS column.}
+\item{norm_prs}{Character vector with the name of the normalized PRS column.}
 
 \item{recipe_var}{A recipe from recipes::recipe() object, to be provided optionally, in case the recipe originally included in the model (status ~ prs + scaled_centered_pc(1:10) + age_analysis) is not what you need for your PRS.}
 }

@@ -79,7 +79,7 @@ test_that("per_sd_metrics returns the correct auc_prs_only structure", {
   expect_s3_class(res[["auc_prs_only_training_set"]], "data.frame")
 })
 
-test_that("per_sd_metrics returns a list with non-empty variables", {
+test_that("per_sd_metrics returns a list with non-empty variables when an external recipe is not provided", {
   data_mock <- setup_mock_df()
 
   # Run
@@ -99,12 +99,33 @@ test_that("per_sd_metrics list object 'delta_auc' is a dataframe", {
   expect_s3_class(res$delta_auc, "data.frame")
 })
 
-# test_that("external recipe works with per_sd_metrics", {
-#   data_mock <- setup_mock_df()
+test_that("per_sd_metrics returns a list with non-empty variables when an external recipe is provided", {
+  data_mock <- setup_mock_df()
+  data_mock$norm_prs_test <- data_mock$prs_test
 
-#   # Run
-#   res <- per_sd_metrics(dataset = data_mock, prs_col = "prs_test", seed = 282)
+  # Recipe
+  form_full_model <- as.formula(paste(
+    "status ~ norm_prs_test",
+    "+",
+    paste0("pc", 1:10, sep = " + ", collapse = " "),
+    "age_analysis"
+  ))
 
-#   # Test
-#   expect_s3_class(res$delta_auc, "data.frame")
-# })
+  rec <- recipes::recipe(
+    form_full_model,
+    data = data_mock
+  ) |>
+    recipes::step_normalize(dplyr::starts_with("pc")) |>
+    recipes::step_ns(age_analysis, deg_free = 4)
+
+  # Run
+  res <- per_sd_metrics(
+    dataset = data_mock,
+    prs_col = "prs_test",
+    seed = 282,
+    recipe_var = rec
+  )
+
+  # Test
+  expect_length(res, 12)
+})

@@ -3,7 +3,7 @@
 #' @param train_ctrl_stats Training set of the PRS data.
 #' @param test_ctrl_stats Testing set of the PRS data.
 #' @param log_reg A parsnip logistic regression model.
-#' @param norm_prs name of the normalized PRS column.
+#' @param norm_prs Character vector with the name of the normalized PRS column.
 #' @param recipe_var A recipe from recipes::recipe() object, to be provided optionally, in case the recipe originally included in the model (status ~ prs + scaled_centered_pc(1:10) + age_analysis) is not what you need for your PRS.
 #'
 #' @return A list with OR, AUC, delta AUC, and ROC curve for AUC with and without PRS.
@@ -149,7 +149,7 @@ model_without_prs <- function(
       recipes::step_normalize(dplyr::starts_with("pc"))
   } else {
     rec_wo_prs <- recipe_var |>
-      step_rm(norm_prs)
+      recipes::step_rm(dplyr::starts_with("norm_prs"))
   }
 
   wflow_wo_prs <- workflows::workflow() |>
