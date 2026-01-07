@@ -98,3 +98,13 @@ test_that("per_sd_metrics list object 'delta_auc' is a dataframe", {
   # Test
   expect_s3_class(res$delta_auc, "data.frame")
 })
+
+# test_that("external recipe works with per_sd_metrics", {
+#   data_mock <- setup_mock_df()
+
+#   # Run
+#   res <- per_sd_metrics(dataset = data_mock, prs_col = "prs_test", seed = 282)
+
+#   # Test
+#   expect_s3_class(res$delta_auc, "data.frame")
+# })

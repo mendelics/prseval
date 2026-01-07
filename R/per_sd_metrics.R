@@ -127,8 +127,7 @@ per_sd_metrics <- function(dataset, prs_col, seed, recipe_var = NULL) {
     train_ctrl_stats,
     test_ctrl_stats,
     log_reg,
-    norm_prs,
-    recipe_var
+    norm_prs
   )
 
   # Results---------------

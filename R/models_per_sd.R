@@ -148,7 +148,8 @@ model_without_prs <- function(
     ) |>
       recipes::step_normalize(dplyr::starts_with("pc"))
   } else {
-    rec_wo_prs <- recipe_var
+    rec_wo_prs <- recipe_var |>
+      step_rm(norm_prs)
   }
 
   wflow_wo_prs <- workflows::workflow() |>
@@ -220,20 +221,14 @@ model_prs_only <- function(
   train_ctrl_stats,
   test_ctrl_stats,
   log_reg,
-  norm_prs,
-  recipe_var
+  norm_prs
 ) {
-  # If external recipe is not provided, use the basic one with PCs 1:10 and age_analysis as covariates
-  if (is.null(recipe_var)) {
-    form_prs_only <- as.formula(paste("status ~", norm_prs))
+  form_prs_only <- as.formula(paste("status ~", norm_prs))
 
-    rec_prs_only <- recipes::recipe(
-      form_prs_only,
-      data = train_ctrl_stats
-    )
-  } else {
-    rec_prs_only <- recipe_var
-  }
+  rec_prs_only <- recipes::recipe(
+    form_prs_only,
+    data = train_ctrl_stats
+  )
 
   wflow_rec_prs_only <- workflows::workflow() |>
     workflows::add_model(log_reg) |>
