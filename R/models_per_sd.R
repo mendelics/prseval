@@ -232,7 +232,7 @@ model_prs_only <- function(
       data = train_ctrl_stats
     )
   } else {
-    rec_wo_prs <- recipe_var
+    rec_prs_only <- recipe_var
   }
 
   wflow_rec_prs_only <- workflows::workflow() |>
