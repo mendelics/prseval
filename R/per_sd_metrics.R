@@ -4,6 +4,7 @@
 #' @param prs_col Name of PRS column (character).
 #' @param seed A random number to be set as a seed for the training and testing sampling to be reproducible.
 #' @param recipe_var A recipe from recipes::recipe() object, to be provided optionally, in case the recipe originally included in the model (status ~ prs + scaled_centered_pc(1:10) + age_analysis) is not what you need for your PRS.
+#' @param split_var Name of column with two categories that define split between training and testing sets (character).
 #'
 #' @return A list with OR, AUC, delta AUC, and ROC curve for AUC with and without PRS.
 #' @importFrom stats anova
@@ -56,7 +57,13 @@
 #' per_sd_metrics(data_mock, prs_col_mock, seed)
 #'
 
-per_sd_metrics <- function(dataset, prs_col, seed, recipe_var = NULL) {
+per_sd_metrics <- function(
+  dataset,
+  prs_col,
+  seed,
+  recipe_var = NULL,
+  split_var = NULL
+) {
   stopifnot(
     is.double(dataset |> dplyr::pull({{ prs_col }})),
     is.factor(dataset |> dplyr::pull(status))
@@ -67,10 +74,23 @@ per_sd_metrics <- function(dataset, prs_col, seed, recipe_var = NULL) {
   # Set PRS name with "norm" because we use the normalized version for the analyses
   norm_prs <- paste0("norm_", prs_col)
 
-  split <- rsample::initial_split(dataset, strata = status, prop = 0.75)
+  if (is.null(split_var)) {
+    split <- rsample::initial_split(dataset, strata = status, prop = 0.75)
 
-  train <- rsample::training(split)
-  test <- rsample::testing(split)
+    train <- rsample::training(split)
+    test <- rsample::testing(split)
+  } else {
+    # Set category with more entries as the training set
+    n_split_var <- dataset |>
+      group_by(get(split_var)) |>
+      count() |>
+      arrange(desc(n))
+    train_var <- head(n_split_var, n = 1) |> pull(`get(split_var)`)
+    test_var <- setdiff(n_split_var$`get(split_var)`, train_var)
+
+    train <- dataset |> filter(get(split_var) == train_var)
+    test <- dataset |> filter(get(split_var) == test_var)
+  }
 
   control_stats_train <- get_control_stats(train) |> as.data.frame()
 

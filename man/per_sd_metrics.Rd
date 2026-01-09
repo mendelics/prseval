@@ -4,7 +4,7 @@
 \alias{per_sd_metrics}
 \title{Metrics per Standard Deviation}
 \usage{
-per_sd_metrics(dataset, prs_col, seed, recipe_var = NULL)
+per_sd_metrics(dataset, prs_col, seed, recipe_var = NULL, split_var = NULL)
 }
 \arguments{
 \item{dataset}{A dataframe with columns status, age at analysis or diagnosis, impersonate code and id.}
@@ -14,6 +14,8 @@ per_sd_metrics(dataset, prs_col, seed, recipe_var = NULL)
 \item{seed}{A random number to be set as a seed for the training and testing sampling to be reproducible.}
 
 \item{recipe_var}{A recipe from recipes::recipe() object, to be provided optionally, in case the recipe originally included in the model (status ~ prs + scaled_centered_pc(1:10) + age_analysis) is not what you need for your PRS.}
+
+\item{split_var}{Name of column with two categories that define split between training and testing sets (character).}
 }
 \value{
 A list with OR, AUC, delta AUC, and ROC curve for AUC with and without PRS.

@@ -129,3 +129,18 @@ test_that("per_sd_metrics returns a list with non-empty variables when an extern
   # Test
   expect_length(res, 12)
 })
+
+test_that("per_sd_metrics function returns full list result when provided a split variable", {
+  data_mock <- setup_mock_df()
+
+  # Run
+  res <- per_sd_metrics(
+    dataset = data_mock,
+    prs_col = "prs_test",
+    seed = 82,
+    split_var = "version"
+  )
+
+  # Test
+  expect_length(res, 12)
+})
